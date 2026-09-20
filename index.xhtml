@@ -179,7 +179,6 @@
     table#file-list th.col-name {
       text-align: left;
     }
-    table#file-list th.col-type,
     table#file-list th.col-preview,
     table#file-list th.col-range,
     table#file-list th.col-actions {
@@ -202,7 +201,6 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    table#file-list td.col-type,
     table#file-list td.col-preview,
     table#file-list td.col-range,
     table#file-list td.col-actions {
@@ -227,6 +225,23 @@
       border-radius: 4px;
       border: 1px solid #dddddd;
       transition: transform 0.2s ease-in-out;
+    }
+    table#file-list .image-preview {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    table#file-list .rotate-btn {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 1em;
+      color: #111111;
+      padding: 2px 6px;
+      transition: color 0.2s ease-in-out;
+    }
+    table#file-list .rotate-btn:hover {
+      color: #fe4880;
     }
     table#file-list .page-range {
       width: 70px;
@@ -354,7 +369,6 @@
       <thead>
         <tr>
           <th class="col-name">File name</th>
-          <th class="col-type">Type</th>
           <th class="col-preview">Preview</th>
           <th class="col-range">Page range</th>
           <th class="col-actions">Actions</th>
@@ -599,35 +613,44 @@
           nameTd.title = entry.file.name;
           tr.appendChild(nameTd);
 
-          // --- Type column ---
-          var typeTd = document.createElement("td");
-          typeTd.className = "col-type";
-          var typeLabel = document.createElement("span");
-          typeLabel.className = "type-label";
-          typeLabel.textContent = entry.type;
-          typeTd.appendChild(typeLabel);
-          if (entry.type === "pdf") {
-            var pageCountLabel = document.createElement("span");
-            pageCountLabel.className = "page-count";
-            if (entry.pageCount === null) {
-              pageCountLabel.textContent = "loading...";
-            } else {
-              pageCountLabel.textContent = entry.pageCount + (entry.pageCount === 1 ? " page" : " pages");
-            }
-            typeTd.appendChild(pageCountLabel);
-          }
-          tr.appendChild(typeTd);
-
-          // --- Preview column ---
+          // --- Preview column (merged: type/pages for PDFs, thumbnail + rotate for images) ---
           var previewTd = document.createElement("td");
           previewTd.className = "col-preview";
-          if (entry.type === "image" && entry.thumbUrl) {
+          if (entry.type === "pdf") {
+            var pdfLabel = document.createElement("span");
+            pdfLabel.className = "type-label";
+            if (entry.pageCount === null) {
+              pdfLabel.textContent = "PDF - loading...";
+            } else if (entry.pageCount === "?") {
+              pdfLabel.textContent = "PDF - ? pages";
+            } else {
+              pdfLabel.textContent = "PDF - " + entry.pageCount + (entry.pageCount === 1 ? " page" : " pages");
+            }
+            previewTd.appendChild(pdfLabel);
+          } else if (entry.type === "image" && entry.thumbUrl) {
+            var imagePreview = document.createElement("span");
+            imagePreview.className = "image-preview";
+
             var thumbImg = document.createElement("img");
             thumbImg.className = "thumbnail";
             thumbImg.src = entry.thumbUrl;
             thumbImg.alt = "";
             thumbImg.style.transform = "rotate(" + entry.rotation + "deg)";
-            previewTd.appendChild(thumbImg);
+            imagePreview.appendChild(thumbImg);
+
+            var rotateBtn = document.createElement("button");
+            rotateBtn.type = "button";
+            rotateBtn.className = "rotate-btn";
+            rotateBtn.textContent = "\u21BB";
+            rotateBtn.title = "Rotate 90\u00B0";
+            rotateBtn.onclick = function () {
+              entry.rotation = (entry.rotation + 90) % 360;
+              debugLog("Rotated \"" + entry.file.name + "\" to " + entry.rotation + "\u00B0", "info");
+              renderFileList();
+            };
+            imagePreview.appendChild(rotateBtn);
+
+            previewTd.appendChild(imagePreview);
           } else {
             previewTd.textContent = "\u2014";
           }
@@ -689,19 +712,6 @@
           removeBtn.title = "Remove";
           removeBtn.onclick = function () { removeFile(index); };
           controls.appendChild(removeBtn);
-
-          if (entry.type === "image") {
-            var rotateBtn = document.createElement("button");
-            rotateBtn.type = "button";
-            rotateBtn.textContent = "\u21BB";
-            rotateBtn.title = "Rotate 90\u00B0";
-            rotateBtn.onclick = function () {
-              entry.rotation = (entry.rotation + 90) % 360;
-              debugLog("Rotated \"" + entry.file.name + "\" to " + entry.rotation + "\u00B0", "info");
-              renderFileList();
-            };
-            controls.appendChild(rotateBtn);
-          }
 
           actionsTd.appendChild(controls);
           tr.appendChild(actionsTd);
