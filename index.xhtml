@@ -27,7 +27,7 @@
       border-radius: 12px;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
       padding: 40px;
-      max-width: 560px;
+      max-width: 800px;
       width: 100%;
       text-align: center;
     }
@@ -70,6 +70,19 @@
       color: #4fc1ff;
       border-bottom: 1px solid #444444;
       padding-bottom: 8px;
+    }
+    .debug-panel #debug-about {
+      margin: 0 0 14px 0;
+      color: #d4d4d4;
+      line-height: 1.5em;
+    }
+    .debug-panel #debug-about a {
+      color: #4fc1ff;
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .debug-panel #debug-about a:hover {
+      text-decoration: underline;
     }
     .debug-panel #debug-changelog {
       margin: 0 0 14px 0;
@@ -184,6 +197,7 @@
     table#file-list td.col-name {
       max-width: 0;
       width: 100%;
+      min-width: 320px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -239,7 +253,7 @@
       background: transparent;
       cursor: pointer;
       font-size: 1em;
-      color: #333333;
+      color: #111111;
       padding: 2px 6px;
       transition: color 0.2s ease-in-out;
     }
@@ -363,6 +377,13 @@
     <button type="button" class="toggle-debug-button" id="toggle-debug-button">Info</button>
 
     <div class="debug-panel" id="debug-panel">
+      <h2>About</h2>
+      <div id="debug-about">
+        <p>All processing happens locally in your browser. Your files are never uploaded anywhere.</p>
+        <p>This page is open source. Source code:<br />
+          <a href="https://github.com/bastientalgorn/Merge_PDF" target="_blank" rel="noopener noreferrer">github.com/bastientalgorn/Merge_PDF</a>
+        </p>
+      </div>
       <h2>Version Info</h2>
       <ul id="debug-changelog">
         <li>v2.2 - Added rotate button for images (rotates preview thumbnail and output page)</li>
