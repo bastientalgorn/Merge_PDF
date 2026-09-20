@@ -150,6 +150,23 @@
       white-space: nowrap;
       margin-right: 10px;
     }
+    ul#file-list li .page-range {
+      width: 70px;
+      padding: 4px 6px;
+      border: 1px solid #cccccc;
+      border-radius: 4px;
+      font-size: 0.85em;
+      margin-right: 8px;
+      text-align: center;
+    }
+    ul#file-list li .page-range.invalid {
+      border-color: #d8000c;
+      background-color: #ffe5e5;
+    }
+    ul#file-list li .page-range:focus {
+      outline: none;
+      border-color: #fe4880;
+    }
     ul#file-list li .file-controls button {
       border: none;
       background: transparent;
@@ -242,7 +259,7 @@
 <body>
   <div class="card">
     <h1>PDF Merger</h1>
-    <p class="subtitle">Select or drop multiple PDF files, arrange their order, then merge them into one file</p>
+    <p class="subtitle">Select or drop multiple PDF files, set an optional page range for each, arrange their order, then merge them into one file</p>
 
     <div id="drop-zone" class="drop-zone">
       Click here or drag &amp; drop PDF files
@@ -264,6 +281,7 @@
   <div class="debug-panel">
     <h2>Debug Info</h2>
     <ul id="debug-changelog">
+      <li>v1.4 - Added per-file page range field (e.g. "1-4", "all", "*") with strict validation</li>
       <li>v1.3 - Added debug panel with changelog and live event log</li>
       <li>v1.2 - Bound buttons via addEventListener; added pdf-lib load check and global error handler</li>
       <li>v1.1 - Vendored pdf-lib.min.js locally (v1.17.1) instead of using CDN</li>
@@ -350,7 +368,7 @@
       for (var i = 0; i < fileArray.length; i++) {
         var f = fileArray[i];
         if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) {
-          selectedFiles.push(f);
+          selectedFiles.push({ file: f, pageRange: "" });
           debugLog("Added file: " + f.name + " (" + f.size + " bytes)", "info");
         } else {
           debugLog("Ignored non-PDF file: " + f.name, "error");
@@ -363,6 +381,45 @@
     function removeFile(index) {
       selectedFiles.splice(index, 1);
       renderFileList();
+    }
+
+    // Parses and strictly validates a page range string.
+    // Returns { valid: true, start: <1-based>, end: <1-based> } for a specific range,
+    // or { valid: true, start: null, end: null } to indicate "all pages",
+    // or { valid: false, error: <message> } if the input is invalid.
+    function parsePageRange(value) {
+      var trimmed = value.trim();
+
+      if (trimmed === "") {
+        return { valid: true, start: null, end: null };
+      }
+
+      if (trimmed === "*" || trimmed.toLowerCase() === "all") {
+        return { valid: true, start: null, end: null };
+      }
+
+      // Strictly match "digits-digits" with no extra whitespace or characters.
+      var match = /^([0-9]+)-([0-9]+)$/.exec(trimmed);
+      if (!match) {
+        return { valid: false, error: "Use a format like '2-5', 'all', '*', or leave empty." };
+      }
+
+      var start = parseInt(match[1], 10);
+      var end = parseInt(match[2], 10);
+
+      if (String(start) !== match[1] || String(end) !== match[2]) {
+        return { valid: false, error: "Page numbers must not have leading zeros." };
+      }
+
+      if (start < 1 || end < 1) {
+        return { valid: false, error: "Page numbers must be 1 or greater." };
+      }
+
+      if (start > end) {
+        return { valid: false, error: "Start page must be less than or equal to end page." };
+      }
+
+      return { valid: true, start: start, end: end };
     }
 
     function moveFile(index, direction) {
@@ -380,12 +437,32 @@
       fileListEl.innerHTML = "";
       for (var i = 0; i < selectedFiles.length; i++) {
         (function (index) {
+          var entry = selectedFiles[index];
           var li = document.createElement("li");
 
           var nameSpan = document.createElement("span");
           nameSpan.className = "file-name";
-          nameSpan.textContent = (index + 1) + ". " + selectedFiles[index].name;
+          nameSpan.textContent = (index + 1) + ". " + entry.file.name;
           li.appendChild(nameSpan);
+
+          var rangeInput = document.createElement("input");
+          rangeInput.type = "text";
+          rangeInput.className = "page-range";
+          rangeInput.placeholder = "all";
+          rangeInput.value = entry.pageRange;
+          rangeInput.title = "Page range (e.g. 1-4). Leave empty or use 'all'/'*' for all pages.";
+          rangeInput.addEventListener("input", function () {
+            entry.pageRange = rangeInput.value;
+            var result = parsePageRange(rangeInput.value);
+            if (result.valid) {
+              rangeInput.classList.remove("invalid");
+              rangeInput.title = "Page range (e.g. 1-4). Leave empty or use 'all'/'*' for all pages.";
+            } else {
+              rangeInput.classList.add("invalid");
+              rangeInput.title = result.error;
+            }
+          });
+          li.appendChild(rangeInput);
 
           var controls = document.createElement("span");
           controls.className = "file-controls";
@@ -461,6 +538,16 @@
         return;
       }
 
+      // Validate all page ranges up front; abort the whole merge if any is invalid.
+      for (var v = 0; v < selectedFiles.length; v++) {
+        var validation = parsePageRange(selectedFiles[v].pageRange);
+        if (!validation.valid) {
+          showStatus("Invalid page range for \"" + selectedFiles[v].file.name + "\": " + validation.error, "error");
+          debugLog("Validation failed for \"" + selectedFiles[v].file.name + "\": " + validation.error, "error");
+          return;
+        }
+      }
+
       mergeButton.disabled = true;
       showStatus("Merging PDFs, please wait...", "info");
       downloadLink.style.display = "none";
@@ -471,11 +558,39 @@
       PDFDocument.create().then(function (mergedPdf) {
         var chain = Promise.resolve();
 
-        selectedFiles.forEach(function (file) {
+        selectedFiles.forEach(function (entry) {
           chain = chain.then(function () {
-            return readFileAsArrayBuffer(file).then(function (arrayBuffer) {
+            return readFileAsArrayBuffer(entry.file).then(function (arrayBuffer) {
               return PDFDocument.load(arrayBuffer).then(function (donorPdf) {
-                var indices = donorPdf.getPageIndices();
+                var totalPages = donorPdf.getPageCount();
+                var range = parsePageRange(entry.pageRange);
+                var indices;
+
+                if (range.start === null) {
+                  indices = donorPdf.getPageIndices();
+                } else {
+                  var startIdx = range.start - 1;
+                  var endIdx = Math.min(range.end - 1, totalPages - 1);
+
+                  if (startIdx >= totalPages) {
+                    throw new Error(
+                      "Page range \"" + entry.pageRange + "\" for \"" + entry.file.name +
+                      "\" is out of bounds (file has " + totalPages + " page(s))."
+                    );
+                  }
+
+                  indices = [];
+                  for (var p = startIdx; p <= endIdx; p++) {
+                    indices.push(p);
+                  }
+                }
+
+                debugLog(
+                  "Copying " + indices.length + " page(s) from \"" + entry.file.name +
+                  "\" (range: " + (entry.pageRange || "all") + ").",
+                  "info"
+                );
+
                 return mergedPdf.copyPages(donorPdf, indices).then(function (copiedPages) {
                   copiedPages.forEach(function (page) {
                     mergedPdf.addPage(page);
