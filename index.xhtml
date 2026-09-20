@@ -11,7 +11,7 @@
     }
     body {
       font-family: "Segoe UI", Arial, sans-serif;
-      background: linear-gradient(135deg, #f8b500 0%, #fe4880 100%);
+      background: #3a3a3a;
       min-height: 100vh;
       margin: 0;
       display: flex;
@@ -213,6 +213,7 @@
       object-fit: cover;
       border-radius: 4px;
       border: 1px solid #dddddd;
+      transition: transform 0.2s ease-in-out;
     }
     table#file-list .page-range {
       width: 70px;
@@ -365,6 +366,7 @@
     <div class="debug-panel" id="debug-panel">
       <h2>Version Info</h2>
       <ul id="debug-changelog">
+        <li>v2.2 - Added rotate button for images (rotates preview thumbnail and output page)</li>
         <li>v2.1 - Moved the toggle button to the side column and renamed it to "Info"</li>
         <li>v2.0 - Debug panel is now hidden by default behind a "Show Debug" toggle; renamed "Live Log" to "Log"</li>
         <li>v1.9 - Redesigned file list as a table (name, type, preview, page range, actions) with PDF page counts and a trash-bin delete icon</li>
@@ -475,7 +477,7 @@
           fetchPageCount(pdfEntry);
         } else if (isImage) {
           var thumbUrl = URL.createObjectURL(f);
-          selectedFiles.push({ file: f, type: "image", pageRange: "", thumbUrl: thumbUrl });
+          selectedFiles.push({ file: f, type: "image", pageRange: "", thumbUrl: thumbUrl, rotation: 0 });
           debugLog("Added image: " + f.name + " (" + f.size + " bytes)", "info");
         } else {
           debugLog("Ignored unsupported file: " + f.name, "error");
@@ -604,6 +606,7 @@
             thumbImg.className = "thumbnail";
             thumbImg.src = entry.thumbUrl;
             thumbImg.alt = "";
+            thumbImg.style.transform = "rotate(" + entry.rotation + "deg)";
             previewTd.appendChild(thumbImg);
           } else {
             previewTd.textContent = "\u2014";
@@ -666,6 +669,19 @@
           removeBtn.title = "Remove";
           removeBtn.onclick = function () { removeFile(index); };
           controls.appendChild(removeBtn);
+
+          if (entry.type === "image") {
+            var rotateBtn = document.createElement("button");
+            rotateBtn.type = "button";
+            rotateBtn.textContent = "\u21BB";
+            rotateBtn.title = "Rotate 90\u00B0";
+            rotateBtn.onclick = function () {
+              entry.rotation = (entry.rotation + 90) % 360;
+              debugLog("Rotated \"" + entry.file.name + "\" to " + entry.rotation + "\u00B0", "info");
+              renderFileList();
+            };
+            controls.appendChild(rotateBtn);
+          }
 
           actionsTd.appendChild(controls);
           tr.appendChild(actionsTd);
@@ -742,14 +758,27 @@
     // the canvas bakes in the correctly-oriented pixels, avoiding sideways/upside-down photos.
     function addImagePage(mergedPdf, entry) {
       var file = entry.file;
+      var rotation = entry.rotation || 0;
 
-      debugLog("Rendering image to canvas (applies EXIF orientation): " + file.name, "info");
+      debugLog("Rendering image to canvas (applies EXIF orientation, rotation: " + rotation + "\u00B0): " + file.name, "info");
       return loadImageElement(file).then(function (result) {
+        var srcWidth = result.img.naturalWidth;
+        var srcHeight = result.img.naturalHeight;
+        var swapDimensions = (rotation === 90 || rotation === 270);
+        var canvasWidth = swapDimensions ? srcHeight : srcWidth;
+        var canvasHeight = swapDimensions ? srcWidth : srcHeight;
+
         var canvas = document.createElement("canvas");
-        canvas.width = result.img.naturalWidth;
-        canvas.height = result.img.naturalHeight;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
         var ctx = canvas.getContext("2d");
-        ctx.drawImage(result.img, 0, 0);
+
+        ctx.save();
+        ctx.translate(canvasWidth / 2, canvasHeight / 2);
+        ctx.rotate((rotation * Math.PI) / 180);
+        ctx.drawImage(result.img, -srcWidth / 2, -srcHeight / 2);
+        ctx.restore();
+
         URL.revokeObjectURL(result.url);
 
         var pngBytes = dataUrlToUint8Array(canvas.toDataURL("image/png"));
