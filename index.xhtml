@@ -15,9 +15,11 @@
       min-height: 100vh;
       margin: 0;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
       padding: 20px;
+      gap: 20px;
+      flex-wrap: wrap;
     }
     .card {
       background: #ffffff;
@@ -27,6 +29,71 @@
       max-width: 560px;
       width: 100%;
       text-align: center;
+    }
+    .debug-panel {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      padding: 20px;
+      width: 340px;
+      max-width: 100%;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.8em;
+      text-align: left;
+    }
+    .debug-panel h2 {
+      margin: 0 0 10px 0;
+      font-size: 1em;
+      color: #4fc1ff;
+      border-bottom: 1px solid #444444;
+      padding-bottom: 8px;
+    }
+    .debug-panel #debug-changelog {
+      margin: 0 0 14px 0;
+      padding-left: 18px;
+      color: #9cdcfe;
+    }
+    .debug-panel #debug-changelog li {
+      margin-bottom: 6px;
+    }
+    .debug-panel #debug-log {
+      background: #111111;
+      border: 1px solid #333333;
+      border-radius: 6px;
+      padding: 10px;
+      height: 260px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .debug-panel #debug-log .log-entry {
+      margin-bottom: 6px;
+      border-bottom: 1px dotted #333333;
+      padding-bottom: 4px;
+    }
+    .debug-panel #debug-log .log-time {
+      color: #6a9955;
+    }
+    .debug-panel #debug-log .log-error {
+      color: #f48771;
+    }
+    .debug-panel #debug-log .log-info {
+      color: #4fc1ff;
+    }
+    .debug-panel button.clear-log {
+      margin-top: 8px;
+      width: 100%;
+      padding: 6px;
+      border: 1px solid #444444;
+      background: #2d2d2d;
+      color: #d4d4d4;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85em;
+    }
+    .debug-panel button.clear-log:hover {
+      background: #3a3a3a;
     }
     h1 {
       margin-top: 0;
@@ -194,6 +261,19 @@
     <a id="download-link" href="#" download="merged.pdf">Download Merged PDF</a>
   </div>
 
+  <div class="debug-panel">
+    <h2>Debug Info</h2>
+    <ul id="debug-changelog">
+      <li>v1.3 - Added debug panel with changelog and live event log</li>
+      <li>v1.2 - Bound buttons via addEventListener; added pdf-lib load check and global error handler</li>
+      <li>v1.1 - Vendored pdf-lib.min.js locally (v1.17.1) instead of using CDN</li>
+      <li>v1.0 - Initial PDF merger page (drag &amp; drop, reorder, merge, download)</li>
+    </ul>
+    <h2>Live Log</h2>
+    <div id="debug-log"></div>
+    <button type="button" class="clear-log" id="clear-log-button">Clear Log</button>
+  </div>
+
   <script type="text/javascript">
     <![CDATA[
     var selectedFiles = [];
@@ -204,10 +284,38 @@
     var mergeButton = document.getElementById("merge-button");
     var statusMessage = document.getElementById("status-message");
     var downloadLink = document.getElementById("download-link");
+    var debugLogEl = document.getElementById("debug-log");
+
+    function debugLog(message, level) {
+      var entry = document.createElement("div");
+      entry.className = "log-entry";
+
+      var time = new Date().toLocaleTimeString();
+      var timeSpan = document.createElement("span");
+      timeSpan.className = "log-time";
+      timeSpan.textContent = "[" + time + "] ";
+      entry.appendChild(timeSpan);
+
+      var msgSpan = document.createElement("span");
+      msgSpan.className = level === "error" ? "log-error" : "log-info";
+      msgSpan.textContent = message;
+      entry.appendChild(msgSpan);
+
+      debugLogEl.appendChild(entry);
+      debugLogEl.scrollTop = debugLogEl.scrollHeight;
+    }
+
+    document.getElementById("clear-log-button").addEventListener("click", function () {
+      debugLogEl.innerHTML = "";
+      debugLog("Log cleared.", "info");
+    });
+
+    debugLog("Page loaded. pdf-lib available: " + (typeof window.PDFLib !== "undefined"), "info");
 
     // Surface any unexpected runtime error instead of failing silently
     window.addEventListener("error", function (e) {
       showStatus("Unexpected error: " + e.message, "error");
+      debugLog("Uncaught error: " + e.message, "error");
       mergeButton.disabled = selectedFiles.length < 2;
     });
 
@@ -243,6 +351,9 @@
         var f = fileArray[i];
         if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) {
           selectedFiles.push(f);
+          debugLog("Added file: " + f.name + " (" + f.size + " bytes)", "info");
+        } else {
+          debugLog("Ignored non-PDF file: " + f.name, "error");
         }
       }
       renderFileList();
@@ -342,8 +453,11 @@
         return;
       }
 
+      debugLog("Merge button clicked with " + selectedFiles.length + " files.", "info");
+
       if (typeof window.PDFLib === "undefined") {
         showStatus("Error: pdf-lib.min.js failed to load. Make sure it is in the same folder as this page and reload.", "error");
+        debugLog("pdf-lib is not defined on window. Aborting merge.", "error");
         return;
       }
 
@@ -381,9 +495,11 @@
         downloadLink.href = url;
         downloadLink.style.display = "inline-block";
         showStatus("Merge complete! Click the button below to download.", "info");
+        debugLog("Merge complete. Output size: " + mergedBytes.length + " bytes.", "info");
         mergeButton.disabled = false;
       }).catch(function (err) {
         showStatus("Error merging PDFs: " + err.message, "error");
+        debugLog("Merge failed: " + err.message, "error");
         mergeButton.disabled = false;
       });
     }
