@@ -36,7 +36,7 @@
       border-radius: 12px;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
       padding: 20px;
-      width: 340px;
+      width: 480px;
       max-width: 100%;
       font-family: Consolas, "Courier New", monospace;
       font-size: 0.8em;
@@ -288,6 +288,7 @@
   <div class="debug-panel">
     <h2>Version Info</h2>
     <ul id="debug-changelog">
+      <li>v1.6 - Removed '*' as an alias for "all pages"; use empty field or 'all' instead</li>
       <li>v1.5 - Added image support (JPG/PNG/GIF/BMP/WebP) and allowed merging with a single file</li>
       <li>v1.4 - Added per-file page range field (e.g. "1-4", "all", "*") with strict validation</li>
       <li>v1.3 - Added debug panel with changelog and live event log</li>
@@ -408,14 +409,14 @@
         return { valid: true, start: null, end: null };
       }
 
-      if (trimmed === "*" || trimmed.toLowerCase() === "all") {
+      if (trimmed.toLowerCase() === "all") {
         return { valid: true, start: null, end: null };
       }
 
       // Strictly match "digits-digits" with no extra whitespace or characters.
       var match = /^([0-9]+)-([0-9]+)$/.exec(trimmed);
       if (!match) {
-        return { valid: false, error: "Use a format like '2-5', 'all', '*', or leave empty." };
+        return { valid: false, error: "Use a format like '2-5', 'all', or leave empty." };
       }
 
       var start = parseInt(match[1], 10);
@@ -465,13 +466,13 @@
             rangeInput.className = "page-range";
             rangeInput.placeholder = "all";
             rangeInput.value = entry.pageRange;
-            rangeInput.title = "Page range (e.g. 1-4). Leave empty or use 'all'/'*' for all pages.";
+            rangeInput.title = "Page range (e.g. 1-4). Leave empty or use 'all' for all pages.";
             rangeInput.addEventListener("input", function () {
               entry.pageRange = rangeInput.value;
               var result = parsePageRange(rangeInput.value);
               if (result.valid) {
                 rangeInput.classList.remove("invalid");
-                rangeInput.title = "Page range (e.g. 1-4). Leave empty or use 'all'/'*' for all pages.";
+                rangeInput.title = "Page range (e.g. 1-4). Leave empty or use 'all' for all pages.";
               } else {
                 rangeInput.classList.add("invalid");
                 rangeInput.title = result.error;
