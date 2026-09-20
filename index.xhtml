@@ -185,8 +185,8 @@
     <ul id="file-list"></ul>
 
     <div class="actions">
-      <button type="button" class="main-action" id="merge-button" disabled="disabled" onclick="mergePdfs();">Merge PDFs</button>
-      <button type="button" class="clear-action" id="clear-button" onclick="clearFiles();">Clear</button>
+      <button type="button" class="main-action" id="merge-button" disabled="disabled">Merge PDFs</button>
+      <button type="button" class="clear-action" id="clear-button">Clear</button>
     </div>
 
     <div id="status-message"></div>
@@ -204,6 +204,15 @@
     var mergeButton = document.getElementById("merge-button");
     var statusMessage = document.getElementById("status-message");
     var downloadLink = document.getElementById("download-link");
+
+    // Surface any unexpected runtime error instead of failing silently
+    window.addEventListener("error", function (e) {
+      showStatus("Unexpected error: " + e.message, "error");
+      mergeButton.disabled = selectedFiles.length < 2;
+    });
+
+    mergeButton.addEventListener("click", mergePdfs);
+    document.getElementById("clear-button").addEventListener("click", clearFiles);
 
     dropZone.addEventListener("click", function () {
       fileInput.click();
@@ -330,6 +339,11 @@
 
     function mergePdfs() {
       if (selectedFiles.length < 2) {
+        return;
+      }
+
+      if (typeof window.PDFLib === "undefined") {
+        showStatus("Error: pdf-lib.min.js failed to load. Make sure it is in the same folder as this page and reload.", "error");
         return;
       }
 
