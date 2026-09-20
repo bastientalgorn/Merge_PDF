@@ -167,6 +167,13 @@
       outline: none;
       border-color: #fe4880;
     }
+    ul#file-list li .type-label {
+      width: 70px;
+      text-align: center;
+      font-size: 0.8em;
+      color: #999999;
+      margin-right: 8px;
+    }
     ul#file-list li .file-controls button {
       border: none;
       background: transparent;
@@ -259,17 +266,17 @@
 <body>
   <div class="card">
     <h1>PDF Merger</h1>
-    <p class="subtitle">Select or drop multiple PDF files, set an optional page range for each, arrange their order, then merge them into one file</p>
+    <p class="subtitle">Select or drop PDFs and/or images (JPG, PNG, GIF, etc.), set an optional page range for each PDF, arrange their order, then merge/convert into one PDF file</p>
 
     <div id="drop-zone" class="drop-zone">
-      Click here or drag &amp; drop PDF files
+      Click here or drag &amp; drop PDF or image files
     </div>
-    <input type="file" id="file-input" accept="application/pdf" multiple="multiple" />
+    <input type="file" id="file-input" accept="application/pdf,image/*" multiple="multiple" />
 
     <ul id="file-list"></ul>
 
     <div class="actions">
-      <button type="button" class="main-action" id="merge-button" disabled="disabled">Merge PDFs</button>
+      <button type="button" class="main-action" id="merge-button" disabled="disabled">Merge / Convert</button>
       <button type="button" class="clear-action" id="clear-button">Clear</button>
     </div>
 
@@ -281,6 +288,7 @@
   <div class="debug-panel">
     <h2>Debug Info</h2>
     <ul id="debug-changelog">
+      <li>v1.5 - Added image support (JPG/PNG/GIF/BMP/WebP) and allowed merging with a single file</li>
       <li>v1.4 - Added per-file page range field (e.g. "1-4", "all", "*") with strict validation</li>
       <li>v1.3 - Added debug panel with changelog and live event log</li>
       <li>v1.2 - Bound buttons via addEventListener; added pdf-lib load check and global error handler</li>
@@ -334,7 +342,7 @@
     window.addEventListener("error", function (e) {
       showStatus("Unexpected error: " + e.message, "error");
       debugLog("Uncaught error: " + e.message, "error");
-      mergeButton.disabled = selectedFiles.length < 2;
+      mergeButton.disabled = selectedFiles.length < 1;
     });
 
     mergeButton.addEventListener("click", mergePdfs);
@@ -367,11 +375,17 @@
     function addFiles(fileArray) {
       for (var i = 0; i < fileArray.length; i++) {
         var f = fileArray[i];
-        if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) {
-          selectedFiles.push({ file: f, pageRange: "" });
-          debugLog("Added file: " + f.name + " (" + f.size + " bytes)", "info");
+        var isPdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+        var isImage = /^image\//.test(f.type) || /\.(jpe?g|png|gif|bmp|webp)$/i.test(f.name);
+
+        if (isPdf) {
+          selectedFiles.push({ file: f, type: "pdf", pageRange: "" });
+          debugLog("Added PDF: " + f.name + " (" + f.size + " bytes)", "info");
+        } else if (isImage) {
+          selectedFiles.push({ file: f, type: "image", pageRange: "" });
+          debugLog("Added image: " + f.name + " (" + f.size + " bytes)", "info");
         } else {
-          debugLog("Ignored non-PDF file: " + f.name, "error");
+          debugLog("Ignored unsupported file: " + f.name, "error");
         }
       }
       renderFileList();
@@ -445,24 +459,31 @@
           nameSpan.textContent = (index + 1) + ". " + entry.file.name;
           li.appendChild(nameSpan);
 
-          var rangeInput = document.createElement("input");
-          rangeInput.type = "text";
-          rangeInput.className = "page-range";
-          rangeInput.placeholder = "all";
-          rangeInput.value = entry.pageRange;
-          rangeInput.title = "Page range (e.g. 1-4). Leave empty or use 'all'/'*' for all pages.";
-          rangeInput.addEventListener("input", function () {
-            entry.pageRange = rangeInput.value;
-            var result = parsePageRange(rangeInput.value);
-            if (result.valid) {
-              rangeInput.classList.remove("invalid");
-              rangeInput.title = "Page range (e.g. 1-4). Leave empty or use 'all'/'*' for all pages.";
-            } else {
-              rangeInput.classList.add("invalid");
-              rangeInput.title = result.error;
-            }
-          });
-          li.appendChild(rangeInput);
+          if (entry.type === "pdf") {
+            var rangeInput = document.createElement("input");
+            rangeInput.type = "text";
+            rangeInput.className = "page-range";
+            rangeInput.placeholder = "all";
+            rangeInput.value = entry.pageRange;
+            rangeInput.title = "Page range (e.g. 1-4). Leave empty or use 'all'/'*' for all pages.";
+            rangeInput.addEventListener("input", function () {
+              entry.pageRange = rangeInput.value;
+              var result = parsePageRange(rangeInput.value);
+              if (result.valid) {
+                rangeInput.classList.remove("invalid");
+                rangeInput.title = "Page range (e.g. 1-4). Leave empty or use 'all'/'*' for all pages.";
+              } else {
+                rangeInput.classList.add("invalid");
+                rangeInput.title = result.error;
+              }
+            });
+            li.appendChild(rangeInput);
+          } else {
+            var typeLabel = document.createElement("span");
+            typeLabel.className = "type-label";
+            typeLabel.textContent = "image";
+            li.appendChild(typeLabel);
+          }
 
           var controls = document.createElement("span");
           controls.className = "file-controls";
@@ -495,7 +516,7 @@
         })(i);
       }
 
-      mergeButton.disabled = selectedFiles.length < 2;
+      mergeButton.disabled = selectedFiles.length < 1;
       downloadLink.style.display = "none";
     }
 
@@ -525,12 +546,73 @@
       });
     }
 
+    function loadImageElement(file) {
+      return new Promise(function (resolve, reject) {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+          resolve({ img: img, url: url });
+        };
+        img.onerror = function () {
+          URL.revokeObjectURL(url);
+          reject(new Error("Failed to load image: " + file.name));
+        };
+        img.src = url;
+      });
+    }
+
+    function dataUrlToUint8Array(dataUrl) {
+      var base64 = dataUrl.split(",")[1];
+      var binary = atob(base64);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    // Adds an image file as a single full-page image in the merged PDF.
+    // Natively supports PNG/JPG via pdf-lib; other formats (GIF, BMP, WebP, etc.)
+    // are converted to PNG via an offscreen canvas first.
+    function addImagePage(mergedPdf, entry) {
+      var file = entry.file;
+      var ext = (file.name.split(".").pop() || "").toLowerCase();
+      var isPng = file.type === "image/png" || ext === "png";
+      var isJpg = file.type === "image/jpeg" || ext === "jpg" || ext === "jpeg";
+
+      function placeImage(image) {
+        var page = mergedPdf.addPage([image.width, image.height]);
+        page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+      }
+
+      if (isPng || isJpg) {
+        debugLog("Embedding " + (isPng ? "PNG" : "JPG") + " image: " + file.name, "info");
+        return readFileAsArrayBuffer(file).then(function (arrayBuffer) {
+          var embedPromise = isPng ? mergedPdf.embedPng(arrayBuffer) : mergedPdf.embedJpg(arrayBuffer);
+          return embedPromise.then(placeImage);
+        });
+      }
+
+      debugLog("Converting image to PNG via canvas: " + file.name, "info");
+      return loadImageElement(file).then(function (result) {
+        var canvas = document.createElement("canvas");
+        canvas.width = result.img.naturalWidth;
+        canvas.height = result.img.naturalHeight;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(result.img, 0, 0);
+        URL.revokeObjectURL(result.url);
+
+        var pngBytes = dataUrlToUint8Array(canvas.toDataURL("image/png"));
+        return mergedPdf.embedPng(pngBytes).then(placeImage);
+      });
+    }
+
     function mergePdfs() {
-      if (selectedFiles.length < 2) {
+      if (selectedFiles.length < 1) {
         return;
       }
 
-      debugLog("Merge button clicked with " + selectedFiles.length + " files.", "info");
+      debugLog("Merge button clicked with " + selectedFiles.length + " file(s).", "info");
 
       if (typeof window.PDFLib === "undefined") {
         showStatus("Error: pdf-lib.min.js failed to load. Make sure it is in the same folder as this page and reload.", "error");
@@ -538,8 +620,11 @@
         return;
       }
 
-      // Validate all page ranges up front; abort the whole merge if any is invalid.
+      // Validate all page ranges up front (PDFs only); abort the whole merge if any is invalid.
       for (var v = 0; v < selectedFiles.length; v++) {
+        if (selectedFiles[v].type !== "pdf") {
+          continue;
+        }
         var validation = parsePageRange(selectedFiles[v].pageRange);
         if (!validation.valid) {
           showStatus("Invalid page range for \"" + selectedFiles[v].file.name + "\": " + validation.error, "error");
@@ -549,7 +634,7 @@
       }
 
       mergeButton.disabled = true;
-      showStatus("Merging PDFs, please wait...", "info");
+      showStatus("Processing files, please wait...", "info");
       downloadLink.style.display = "none";
 
       var PDFLib = window.PDFLib;
@@ -559,6 +644,13 @@
         var chain = Promise.resolve();
 
         selectedFiles.forEach(function (entry) {
+          if (entry.type === "image") {
+            chain = chain.then(function () {
+              return addImagePage(mergedPdf, entry);
+            });
+            return;
+          }
+
           chain = chain.then(function () {
             return readFileAsArrayBuffer(entry.file).then(function (arrayBuffer) {
               return PDFDocument.load(arrayBuffer).then(function (donorPdf) {
