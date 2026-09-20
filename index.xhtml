@@ -125,65 +125,93 @@
     input[type="file"] {
       display: none;
     }
-    ul#file-list {
-      list-style: none;
-      padding: 0;
+    table#file-list {
+      width: 100%;
+      border-collapse: collapse;
       margin: 0 0 20px 0;
       text-align: left;
+      font-size: 0.85em;
     }
-    ul#file-list li {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    table#file-list thead th {
+      font-size: 0.75em;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #999999;
+      font-weight: 600;
+      padding: 0 8px 6px 8px;
+      border-bottom: 2px solid #eeeeee;
+    }
+    table#file-list th.col-name {
+      text-align: left;
+    }
+    table#file-list th.col-type,
+    table#file-list th.col-preview,
+    table#file-list th.col-range,
+    table#file-list th.col-actions {
+      text-align: center;
+    }
+    table#file-list tbody tr {
       background: #f7f7f7;
-      border: 1px solid #eeeeee;
-      border-radius: 6px;
-      padding: 8px 12px;
-      margin-bottom: 8px;
-      font-size: 0.9em;
+    }
+    table#file-list tbody tr td {
+      border-bottom: 1px solid #eeeeee;
+      padding: 8px;
+      vertical-align: middle;
       color: #444444;
     }
-    ul#file-list li .file-name {
-      flex: 1;
+    table#file-list td.col-name {
+      max-width: 0;
+      width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      margin-right: 10px;
     }
-    ul#file-list li .thumbnail {
+    table#file-list td.col-type,
+    table#file-list td.col-preview,
+    table#file-list td.col-range,
+    table#file-list td.col-actions {
+      text-align: center;
+      white-space: nowrap;
+    }
+    table#file-list .type-label {
+      font-size: 0.85em;
+      color: #999999;
+      text-transform: capitalize;
+    }
+    table#file-list .page-count {
+      display: block;
+      font-size: 0.75em;
+      color: #999999;
+      margin-top: 2px;
+    }
+    table#file-list .thumbnail {
       width: 28px;
       height: 28px;
       object-fit: cover;
       border-radius: 4px;
       border: 1px solid #dddddd;
-      margin-right: 8px;
-      flex-shrink: 0;
     }
-    ul#file-list li .page-range {
+    table#file-list .page-range {
       width: 70px;
       padding: 4px 6px;
       border: 1px solid #cccccc;
       border-radius: 4px;
-      font-size: 0.85em;
-      margin-right: 8px;
+      font-size: 0.95em;
       text-align: center;
     }
-    ul#file-list li .page-range.invalid {
+    table#file-list .page-range.invalid {
       border-color: #d8000c;
       background-color: #ffe5e5;
     }
-    ul#file-list li .page-range:focus {
+    table#file-list .page-range:focus {
       outline: none;
       border-color: #fe4880;
     }
-    ul#file-list li .type-label {
-      width: 70px;
-      text-align: center;
-      font-size: 0.8em;
-      color: #999999;
-      margin-right: 8px;
+    table#file-list .file-controls {
+      display: inline-flex;
+      gap: 2px;
     }
-    ul#file-list li .file-controls button {
+    table#file-list .file-controls button {
       border: none;
       background: transparent;
       cursor: pointer;
@@ -192,12 +220,15 @@
       padding: 2px 6px;
       transition: color 0.2s ease-in-out;
     }
-    ul#file-list li .file-controls button:hover {
+    table#file-list .file-controls button:hover {
       color: #fe4880;
     }
-    ul#file-list li .file-controls button:disabled {
+    table#file-list .file-controls button:disabled {
       color: #dddddd;
       cursor: not-allowed;
+    }
+    table#file-list .file-controls button.delete-btn:hover {
+      color: #d8000c;
     }
     .actions {
       display: flex;
@@ -282,7 +313,18 @@
     </div>
     <input type="file" id="file-input" accept="application/pdf,image/*" multiple="multiple" />
 
-    <ul id="file-list"></ul>
+    <table id="file-list">
+      <thead>
+        <tr>
+          <th class="col-name">File name</th>
+          <th class="col-type">Type</th>
+          <th class="col-preview">Preview</th>
+          <th class="col-range">Page range</th>
+          <th class="col-actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="file-list-body"></tbody>
+    </table>
 
     <div class="actions">
       <button type="button" class="main-action" id="merge-button" disabled="disabled">Merge / Convert</button>
@@ -297,6 +339,7 @@
   <div class="debug-panel">
     <h2>Version Info</h2>
     <ul id="debug-changelog">
+      <li>v1.9 - Redesigned file list as a table (name, type, preview, page range, actions) with PDF page counts and a trash-bin delete icon</li>
       <li>v1.8 - Fixed image orientation bug: all images now render through canvas to correctly apply EXIF rotation</li>
       <li>v1.7 - Added small square thumbnail preview for image files (object URLs tracked and revoked)</li>
       <li>v1.6 - Removed '*' as an alias for "all pages"; use empty field or 'all' instead</li>
@@ -318,7 +361,7 @@
 
     var dropZone = document.getElementById("drop-zone");
     var fileInput = document.getElementById("file-input");
-    var fileListEl = document.getElementById("file-list");
+    var fileListEl = document.getElementById("file-list-body");
     var mergeButton = document.getElementById("merge-button");
     var statusMessage = document.getElementById("status-message");
     var downloadLink = document.getElementById("download-link");
@@ -391,8 +434,10 @@
         var isImage = /^image\//.test(f.type) || /\.(jpe?g|png|gif|bmp|webp)$/i.test(f.name);
 
         if (isPdf) {
-          selectedFiles.push({ file: f, type: "pdf", pageRange: "" });
+          var pdfEntry = { file: f, type: "pdf", pageRange: "", pageCount: null };
+          selectedFiles.push(pdfEntry);
           debugLog("Added PDF: " + f.name + " (" + f.size + " bytes)", "info");
+          fetchPageCount(pdfEntry);
         } else if (isImage) {
           var thumbUrl = URL.createObjectURL(f);
           selectedFiles.push({ file: f, type: "image", pageRange: "", thumbUrl: thumbUrl });
@@ -403,6 +448,25 @@
       }
       renderFileList();
       hideStatus();
+    }
+
+    // Asynchronously determines a PDF's page count and re-renders the list once known.
+    function fetchPageCount(pdfEntry) {
+      if (typeof window.PDFLib === "undefined") {
+        return;
+      }
+      var PDFDocument = window.PDFLib.PDFDocument;
+      readFileAsArrayBuffer(pdfEntry.file).then(function (arrayBuffer) {
+        return PDFDocument.load(arrayBuffer);
+      }).then(function (doc) {
+        pdfEntry.pageCount = doc.getPageCount();
+        debugLog("\"" + pdfEntry.file.name + "\" has " + pdfEntry.pageCount + " page(s).", "info");
+        renderFileList();
+      }).catch(function (err) {
+        pdfEntry.pageCount = "?";
+        debugLog("Could not read page count for \"" + pdfEntry.file.name + "\": " + err.message, "error");
+        renderFileList();
+      });
     }
 
     function removeFile(index) {
@@ -469,21 +533,51 @@
       for (var i = 0; i < selectedFiles.length; i++) {
         (function (index) {
           var entry = selectedFiles[index];
-          var li = document.createElement("li");
+          var tr = document.createElement("tr");
 
+          // --- File name column ---
+          var nameTd = document.createElement("td");
+          nameTd.className = "col-name";
+          nameTd.textContent = (index + 1) + ". " + entry.file.name;
+          nameTd.title = entry.file.name;
+          tr.appendChild(nameTd);
+
+          // --- Type column ---
+          var typeTd = document.createElement("td");
+          typeTd.className = "col-type";
+          var typeLabel = document.createElement("span");
+          typeLabel.className = "type-label";
+          typeLabel.textContent = entry.type;
+          typeTd.appendChild(typeLabel);
+          if (entry.type === "pdf") {
+            var pageCountLabel = document.createElement("span");
+            pageCountLabel.className = "page-count";
+            if (entry.pageCount === null) {
+              pageCountLabel.textContent = "loading...";
+            } else {
+              pageCountLabel.textContent = entry.pageCount + (entry.pageCount === 1 ? " page" : " pages");
+            }
+            typeTd.appendChild(pageCountLabel);
+          }
+          tr.appendChild(typeTd);
+
+          // --- Preview column ---
+          var previewTd = document.createElement("td");
+          previewTd.className = "col-preview";
           if (entry.type === "image" && entry.thumbUrl) {
             var thumbImg = document.createElement("img");
             thumbImg.className = "thumbnail";
             thumbImg.src = entry.thumbUrl;
             thumbImg.alt = "";
-            li.appendChild(thumbImg);
+            previewTd.appendChild(thumbImg);
+          } else {
+            previewTd.textContent = "\u2014";
           }
+          tr.appendChild(previewTd);
 
-          var nameSpan = document.createElement("span");
-          nameSpan.className = "file-name";
-          nameSpan.textContent = (index + 1) + ". " + entry.file.name;
-          li.appendChild(nameSpan);
-
+          // --- Page range column (PDFs only) ---
+          var rangeTd = document.createElement("td");
+          rangeTd.className = "col-range";
           if (entry.type === "pdf") {
             var rangeInput = document.createElement("input");
             rangeInput.type = "text";
@@ -502,14 +596,15 @@
                 rangeInput.title = result.error;
               }
             });
-            li.appendChild(rangeInput);
+            rangeTd.appendChild(rangeInput);
           } else {
-            var typeLabel = document.createElement("span");
-            typeLabel.className = "type-label";
-            typeLabel.textContent = "image";
-            li.appendChild(typeLabel);
+            rangeTd.textContent = "\u2014";
           }
+          tr.appendChild(rangeTd);
 
+          // --- Actions column ---
+          var actionsTd = document.createElement("td");
+          actionsTd.className = "col-actions";
           var controls = document.createElement("span");
           controls.className = "file-controls";
 
@@ -531,13 +626,16 @@
 
           var removeBtn = document.createElement("button");
           removeBtn.type = "button";
-          removeBtn.textContent = "\u2716";
+          removeBtn.className = "delete-btn";
+          removeBtn.textContent = "\uD83D\uDDD1\uFE0F";
           removeBtn.title = "Remove";
           removeBtn.onclick = function () { removeFile(index); };
           controls.appendChild(removeBtn);
 
-          li.appendChild(controls);
-          fileListEl.appendChild(li);
+          actionsTd.appendChild(controls);
+          tr.appendChild(actionsTd);
+
+          fileListEl.appendChild(tr);
         })(i);
       }
 
