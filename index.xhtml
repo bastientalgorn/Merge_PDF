@@ -41,6 +41,25 @@
       font-family: Consolas, "Courier New", monospace;
       font-size: 0.8em;
       text-align: left;
+      display: none;
+    }
+    .debug-panel.visible {
+      display: block;
+    }
+    .toggle-debug-button {
+      margin-top: 10px;
+      padding: 8px 16px;
+      border: 1px solid #cccccc;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #666666;
+      font-size: 0.85em;
+      cursor: pointer;
+      transition: border-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    }
+    .toggle-debug-button:hover {
+      border-color: #fe4880;
+      color: #fe4880;
     }
     .debug-panel h2 {
       margin: 0 0 10px 0;
@@ -334,11 +353,16 @@
     <div id="status-message"></div>
 
     <a id="download-link" href="#" download="merged.pdf">Download Merged PDF</a>
+
+    <div>
+      <button type="button" class="toggle-debug-button" id="toggle-debug-button">Show Debug</button>
+    </div>
   </div>
 
-  <div class="debug-panel">
+  <div class="debug-panel" id="debug-panel">
     <h2>Version Info</h2>
     <ul id="debug-changelog">
+      <li>v2.0 - Debug panel is now hidden by default behind a "Show Debug" toggle; renamed "Live Log" to "Log"</li>
       <li>v1.9 - Redesigned file list as a table (name, type, preview, page range, actions) with PDF page counts and a trash-bin delete icon</li>
       <li>v1.8 - Fixed image orientation bug: all images now render through canvas to correctly apply EXIF rotation</li>
       <li>v1.7 - Added small square thumbnail preview for image files (object URLs tracked and revoked)</li>
@@ -350,7 +374,7 @@
       <li>v1.1 - Vendored pdf-lib.min.js locally (v1.17.1) instead of using CDN</li>
       <li>v1.0 - Initial PDF merger page (drag &amp; drop, reorder, merge, download)</li>
     </ul>
-    <h2>Live Log</h2>
+    <h2>Log</h2>
     <div id="debug-log"></div>
     <button type="button" class="clear-log" id="clear-log-button">Clear Log</button>
   </div>
@@ -389,6 +413,13 @@
     document.getElementById("clear-log-button").addEventListener("click", function () {
       debugLogEl.innerHTML = "";
       debugLog("Log cleared.", "info");
+    });
+
+    var debugPanel = document.getElementById("debug-panel");
+    var toggleDebugButton = document.getElementById("toggle-debug-button");
+    toggleDebugButton.addEventListener("click", function () {
+      var isVisible = debugPanel.classList.toggle("visible");
+      toggleDebugButton.textContent = isVisible ? "Hide Debug" : "Show Debug";
     });
 
     debugLog("Page loaded. pdf-lib available: " + (typeof window.PDFLib !== "undefined"), "info");
