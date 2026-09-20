@@ -538,7 +538,7 @@
           // --- File name column ---
           var nameTd = document.createElement("td");
           nameTd.className = "col-name";
-          nameTd.textContent = (index + 1) + ". " + entry.file.name;
+          nameTd.textContent = entry.file.name;
           nameTd.title = entry.file.name;
           tr.appendChild(nameTd);
 
@@ -627,7 +627,7 @@
           var removeBtn = document.createElement("button");
           removeBtn.type = "button";
           removeBtn.className = "delete-btn";
-          removeBtn.textContent = "\uD83D\uDDD1\uFE0F";
+          removeBtn.textContent = "\u2715";
           removeBtn.title = "Remove";
           removeBtn.onclick = function () { removeFile(index); };
           controls.appendChild(removeBtn);
