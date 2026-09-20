@@ -150,6 +150,15 @@
       white-space: nowrap;
       margin-right: 10px;
     }
+    ul#file-list li .thumbnail {
+      width: 28px;
+      height: 28px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid #dddddd;
+      margin-right: 8px;
+      flex-shrink: 0;
+    }
     ul#file-list li .page-range {
       width: 70px;
       padding: 4px 6px;
@@ -288,6 +297,7 @@
   <div class="debug-panel">
     <h2>Version Info</h2>
     <ul id="debug-changelog">
+      <li>v1.7 - Added small square thumbnail preview for image files (object URLs tracked and revoked)</li>
       <li>v1.6 - Removed '*' as an alias for "all pages"; use empty field or 'all' instead</li>
       <li>v1.5 - Added image support (JPG/PNG/GIF/BMP/WebP) and allowed merging with a single file</li>
       <li>v1.4 - Added per-file page range field (e.g. "1-4", "all", "*") with strict validation</li>
@@ -383,7 +393,8 @@
           selectedFiles.push({ file: f, type: "pdf", pageRange: "" });
           debugLog("Added PDF: " + f.name + " (" + f.size + " bytes)", "info");
         } else if (isImage) {
-          selectedFiles.push({ file: f, type: "image", pageRange: "" });
+          var thumbUrl = URL.createObjectURL(f);
+          selectedFiles.push({ file: f, type: "image", pageRange: "", thumbUrl: thumbUrl });
           debugLog("Added image: " + f.name + " (" + f.size + " bytes)", "info");
         } else {
           debugLog("Ignored unsupported file: " + f.name, "error");
@@ -394,6 +405,10 @@
     }
 
     function removeFile(index) {
+      var entry = selectedFiles[index];
+      if (entry && entry.thumbUrl) {
+        URL.revokeObjectURL(entry.thumbUrl);
+      }
       selectedFiles.splice(index, 1);
       renderFileList();
     }
@@ -454,6 +469,14 @@
         (function (index) {
           var entry = selectedFiles[index];
           var li = document.createElement("li");
+
+          if (entry.type === "image" && entry.thumbUrl) {
+            var thumbImg = document.createElement("img");
+            thumbImg.className = "thumbnail";
+            thumbImg.src = entry.thumbUrl;
+            thumbImg.alt = "";
+            li.appendChild(thumbImg);
+          }
 
           var nameSpan = document.createElement("span");
           nameSpan.className = "file-name";
@@ -522,6 +545,11 @@
     }
 
     function clearFiles() {
+      selectedFiles.forEach(function (entry) {
+        if (entry.thumbUrl) {
+          URL.revokeObjectURL(entry.thumbUrl);
+        }
+      });
       selectedFiles = [];
       renderFileList();
       hideStatus();
